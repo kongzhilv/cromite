@@ -1,0 +1,80 @@
+name: Sync upstream with zh-CN guard
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-zh
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/uazo/cromite.git || true
+          git fetch upstream master
+
+      - name: Detect upstream changes
+        id: detect
+        run: |
+          BEFORE=$(git rev-parse HEAD)
+          BASE=$(git merge-base HEAD upstream/master)
+          UPSTREAM=$(git rev-parse upstream/master)
+
+          echo "before=$BEFORE" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "upstream=$UPSTREAM" >> "$GITHUB_OUTPUT"
+
+          if [ "$BASE" = "$UPSTREAM" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream
+        if: steps.detect.outputs.changed == 'true'
+        run: |
+          git merge --no-edit upstream/master
+
+      - name: Ensure zh-CN patch stays last
+        if: steps.detect.outputs.changed == 'true'
+        run: |
+          python3 l10n/scripts/ensure_zh_patch_last.py
+
+      - name: Block release when new upstream strings are untranslated
+        if: steps.detect.outputs.changed == 'true'
+        run: |
+          python3 l10n/scripts/check_new_untranslated.py \
+            "${{ steps.detect.outputs.before }}" \
+            "HEAD"
+
+      - name: Commit synced upstream
+        if: steps.detect.outputs.changed == 'true'
+        run: |
+          git add build/cromite_patches_list.txt build/patches/9999-Chinese-localization.patch .github/workflows l10n || true
+          if git diff --cached --quiet; then
+            echo "No local sync changes to commit."
+          else
+            VERSION=$(cat build/RELEASE)
+            git commit -m "Sync upstream Cromite $VERSION with zh-CN guard"
+            git push origin master
+          fi

@@ -1,0 +1,206 @@
+name: Build zh-CN arm64 artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Self-hosted runner label"
+        required: true
+        default: "ci"
+      debug:
+        description: "Debug build"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zh-arm64-artifact
+  cancel-in-progress: false
+
+env:
+  REMOVEDOCKERSUPPORT: true
+  USELOCALIMAGE: true
+
+jobs:
+  check_images:
+    runs-on: ${{ github.event.inputs.runner }}
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      cromite_sha: ${{ steps.meta.outputs.cromite_sha }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          path: cromite
+          ref: master
+          fetch-depth: 1
+
+      - name: Prepare zh-CN patch layer
+        shell: bash
+        run: |
+          cd cromite
+          python3 l10n/scripts/ensure_zh_patch_last.py
+          python3 l10n/scripts/check_new_untranslated.py
+
+      - name: Read metadata
+        id: meta
+        shell: bash
+        run: |
+          cd cromite
+          VERSION=$(cat build/RELEASE)
+          CROMITE_SHA=$(git rev-parse HEAD)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "cromite_sha=$CROMITE_SHA" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "CROMITE_SHA=$CROMITE_SHA" >> "$GITHUB_ENV"
+
+      - name: Download regctl
+        shell: bash
+        run: |
+          curl -L https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 >regctl
+          chmod 755 regctl
+
+      - name: Build build-deps image if needed
+        shell: bash
+        run: |
+          docker pull uazo/build-deps:$VERSION || true
+          IS_PRESENT=$(docker inspect --type=image uazo/build-deps:$VERSION > /dev/null ; echo $?)
+          if [ $IS_PRESENT -ne "0" ]; then
+            IS_PRESENT=$(./regctl image inspect uazo/build-deps:$VERSION > /dev/null ; echo $?)
+            if [ $IS_PRESENT -ne "0" ]; then
+              DOCKER_BUILDKIT=1 docker build -t uazo/build-deps:$VERSION \
+                --progress plain \
+                --build-arg VERSION=$VERSION \
+                --no-cache \
+                cromite/tools/images/build-deps/.
+            fi
+          fi
+
+      - name: Build chromium image if needed
+        shell: bash
+        run: |
+          docker pull uazo/chromium:$VERSION || true
+          IS_PRESENT=$(docker inspect --type=image uazo/chromium:$VERSION > /dev/null ; echo $?)
+          if [ $IS_PRESENT -ne "0" ]; then
+            IS_PRESENT=$(./regctl image inspect uazo/chromium:$VERSION > /dev/null ; echo $?)
+            if [ $IS_PRESENT -ne "0" ]; then
+              DOCKER_BUILDKIT=1 docker build -t uazo/chromium:$VERSION \
+                --progress plain \
+                --build-arg VERSION=$VERSION \
+                cromite/tools/images/chr-source/.
+            fi
+          fi
+
+      - name: Build cromite source image
+        shell: bash
+        run: |
+          docker pull uazo/cromite:$VERSION-$CROMITE_SHA || true
+          IS_PRESENT=$(docker inspect --type=image uazo/cromite:$VERSION-$CROMITE_SHA > /dev/null ; echo $?)
+          if [ $IS_PRESENT -ne "0" ]; then
+            DOCKER_BUILDKIT=1 docker build -t uazo/cromite:$VERSION-$CROMITE_SHA \
+              --progress plain \
+              --build-arg CROMITE_SHA=$CROMITE_SHA \
+              --build-arg VERSION=$VERSION \
+              cromite/tools/images/cromite-source/.
+          fi
+
+      - name: Build cromite-build image
+        shell: bash
+        run: |
+          docker pull uazo/cromite-build:$VERSION-$CROMITE_SHA || true
+          IS_PRESENT=$(docker inspect --type=image uazo/cromite-build:$VERSION-$CROMITE_SHA > /dev/null ; echo $?)
+          if [ $IS_PRESENT -ne "0" ]; then
+            DOCKER_BUILDKIT=1 docker build -t uazo/cromite-build:$VERSION-$CROMITE_SHA \
+              --progress plain \
+              --build-arg CROMITE_SHA=$CROMITE_SHA \
+              --build-arg VERSION=$VERSION \
+              --no-cache \
+              cromite/tools/images/cromite-build/.
+          fi
+
+      - name: Mark build image
+        shell: bash
+        run: |
+          docker rmi uazo/cromite-build:zh-build || true
+          docker tag uazo/cromite-build:$VERSION-$CROMITE_SHA uazo/cromite-build:zh-build
+
+  build_arm64:
+    runs-on: ${{ github.event.inputs.runner }}
+    needs: check_images
+    timeout-minutes: 1440
+
+    container:
+      image: uazo/cromite-build:zh-build
+      env:
+        REMOVEDOCKERSUPPORT: true
+        USELOCALIMAGE: true
+        USEINTERNALNETWORK: true
+        WORKSPACE: /home/lg/working_dir
+        HOME: /home/lg/working_dir
+        TARGET_ISDEBUG: ${{ github.event.inputs.debug }}
+        TARGET_OS: android
+      volumes:
+        - /storage/images/${{ needs.check_images.outputs.cromite_sha }}/android/${{ github.event.inputs.debug }}/arm64:/home/lg/working_dir/chromium/src/out/arm64
+        - /tmp/proxy:/tmp/proxy
+
+    steps:
+      - name: Prepare build container
+        shell: bash
+        run: |
+          PATH=$WORKSPACE/chromium/src/third_party/llvm-build/Release+Asserts/bin:$WORKSPACE/depot_tools/:/usr/local/go/bin:$WORKSPACE/mtool/bin:$PATH
+          cd $WORKSPACE
+
+          HTTP_PROXY=
+          HTTPS_PROXY=
+          http_proxy=
+          https_proxy=
+
+          test -d chromium/src/out/arm64 || sudo mkdir -p chromium/src/out/arm64
+          sudo chown lg chromium/src/out || true
+          sudo chown lg chromium/src/out/arm64 || true
+          sudo chown lg /home/lg/working_dir || true
+
+          test -d /github/home/.config/depot_tools || sudo mkdir -p /github/home/.config/depot_tools
+          sudo chown lg /github/home/.config/depot_tools || true
+
+          sudo mkdir -p /run/user/1000/ || true
+          sudo chown lg /run/user/1000/ || true
+          sudo chmod g-rxw /run/user/1000/ || true
+          sudo chmod o-rxw /run/user/1000/ || true
+
+          echo ../../../../../usr/bin >$WORKSPACE/depot_tools/python3_bin_reldir.txt
+
+      - name: Build zh-CN Cromite Android arm64
+        shell: bash
+        run: |
+          PATH=$WORKSPACE/chromium/src/third_party/llvm-build/Release+Asserts/bin:$WORKSPACE/depot_tools/:/usr/local/go/bin:$WORKSPACE/mtool/bin:$PATH
+          cd $WORKSPACE/chromium/src
+
+          echo "::group::-------- gn gen"
+          gn gen --args="target_os = \"android\" $(cat /home/lg/working_dir/cromite/build/cromite.gn_args) target_cpu = \"arm64\" " out/arm64
+          echo "::endgroup::"
+
+          echo "::group::-------- gn args"
+          gn args out/arm64/ --list --short || true
+          gn args out/arm64/ --list >out/arm64/gn_list || true
+          echo "::endgroup::"
+
+          vpython3 /home/lg/working_dir/depot_tools/siso.py ninja -C out/arm64 chrome_public_bundle --offline
+          vpython3 /home/lg/working_dir/depot_tools/siso.py ninja -C out/arm64 chrome_public_apk --offline
+
+          cp ../../cromite/build/RELEASE out/arm64
+          cp out/arm64/apks/ChromePublic.apk out/arm64/apks/arm64_ChromePublic_zh-CN.apk
+
+      - name: Upload arm64 APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64_ChromePublic_zh-CN
+          path: /home/lg/working_dir/chromium/src/out/arm64/apks/arm64_ChromePublic_zh-CN.apk
+          retention-days: 14

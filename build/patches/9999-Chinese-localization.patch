@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kongzhilv <157718507+kongzhilv@users.noreply.github.com>
+Date: Thu, 18 Jun 2026 00:00:00 +0800
+Subject: [PATCH] zh-CN localization for Cromite strings
+
+Keep the Chinese localization layer as the last Cromite patch so it can be
+rebased independently from upstream patches.
+---
+ .../Add-cromite-flags-support.grdp           |  4 ++--
+ .../Welcome-screen.grdp                      | 10 +++++-----
+ 2 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/Add-cromite-flags-support.grdp b/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/Add-cromite-flags-support.grdp
+--- a/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/Add-cromite-flags-support.grdp
++++ b/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/Add-cromite-flags-support.grdp
+@@ -1,9 +1,9 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <grit-part>
+     <message name="IDS_RELAUNCH" desc="Relaunch message">
+-        Relaunch
++        重新启动
+     </message>
+     <message name="IDS_UI_RELAUNCH_NOTICE" desc="Summary for relaunch message">
+-        Your changes will take effect the next time you relaunch Cromite.
++        更改会在你重新启动 Cromite 后生效。
+     </message>
+ </grit-part>
+diff --git a/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/Welcome-screen.grdp b/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/Welcome-screen.grdp
+--- a/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/Welcome-screen.grdp
++++ b/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/Welcome-screen.grdp
+@@ -1,14 +1,14 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <grit-part>
+     <message name="IDS_FRE_CONTINUE" desc="Text for first page accept and continue button [CHAR_LIMIT=20]">
+-        Continue
++        继续
+     </message>
+     <message name="IDS_AUTO_UPDATER_CHECK" desc="Message for the checkbox for automatic Bromite updates">
+-        Automatic checks for Bromite app updates
++        自动检查 Cromite 应用更新
+     </message>
+ 
+     <message name="IDS_BROMITE_FRE_FOOTER_PRIVACY_POLICY" desc="Message explaining the privacy policy of the file hosting service provider for adblock updates and Bromite app automatic updates">
+-        <ph name="BEGIN_PRIVACY_LINK1">&lt;PRIVACY_LINK1&gt;</ph>Automatic ad block filters updates<ph name="END_PRIVACY_LINK1">&lt;/PRIVACY_LINK1&gt;</ph> are subject to the <ph name="BEGIN_PRIVACY_LINK2">&lt;PRIVACY_LINK2&gt;</ph>Cromite Privacy statement<ph name="END_PRIVACY_LINK2">&lt;/PRIVACY_LINK2&gt;</ph>.
+-The following checkbox controls instead <ph name="BEGIN_PRIVACY_LINK3">&lt;PRIVACY_LINK3&gt;</ph>automatic app updates<ph name="END_PRIVACY_LINK3">&lt;/PRIVACY_LINK3&gt;</ph> which are subject to the <ph name="BEGIN_PRIVACY_LINK4">&lt;PRIVACY_LINK4&gt;</ph>GitHub Privacy statement<ph name="END_PRIVACY_LINK4">&lt;/PRIVACY_LINK4&gt;</ph>.
++        <ph name="BEGIN_PRIVACY_LINK1">&lt;PRIVACY_LINK1&gt;</ph>自动更新广告拦截过滤规则<ph name="END_PRIVACY_LINK1">&lt;/PRIVACY_LINK1&gt;</ph>适用<ph name="BEGIN_PRIVACY_LINK2">&lt;PRIVACY_LINK2&gt;</ph>Cromite 隐私声明<ph name="END_PRIVACY_LINK2">&lt;/PRIVACY_LINK2&gt;</ph>。
++下面的复选框控制<ph name="BEGIN_PRIVACY_LINK3">&lt;PRIVACY_LINK3&gt;</ph>自动应用更新<ph name="END_PRIVACY_LINK3">&lt;/PRIVACY_LINK3&gt;</ph>，该功能适用<ph name="BEGIN_PRIVACY_LINK4">&lt;PRIVACY_LINK4&gt;</ph>GitHub 隐私声明<ph name="END_PRIVACY_LINK4">&lt;/PRIVACY_LINK4&gt;</ph>。
+     </message>
+ 
+     <message name="IDS_PRIVACY_LINK1" desc="URL for Bromite wiki page about ad blocking" translateable="false">
+-- 
+2.43.0
